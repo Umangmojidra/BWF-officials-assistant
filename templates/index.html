@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BWF Ruling Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --green-900: #052e16;
+            --green-800: #14532d;
+            --green-700: #15803d;
+            --green-600: #16a34a;
+            --green-500: #22c55e;
+            --green-400: #4ade80;
+            --green-300: #86efac;
+            --green-100: #dcfce7;
+            --court-line: rgba(34, 197, 94, 0.18);
+            --court-line-bright: rgba(34, 197, 94, 0.35);
+            --surface: rgba(5, 46, 22, 0.6);
+            --surface-hover: rgba(20, 83, 45, 0.5);
+            --border: rgba(34, 197, 94, 0.2);
+            --border-bright: rgba(34, 197, 94, 0.5);
+            --text-dim: rgba(255,255,255,0.45);
+            --text-mid: rgba(255,255,255,0.72);
+            --gold: #fbbf24;
+            --red: #f87171;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: #030f07;
+            color: #fff;
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Court BG */
+        .court-bg {
+            position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+        }
+        .court-bg::before {
+            content: '';
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(88vw, 700px); height: min(94vh, 920px);
+            border: 1.5px solid var(--court-line-bright); border-radius: 2px;
+        }
+        .court-bg::after {
+            content: '';
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(88vw, 700px); height: 1.5px;
+            background: var(--court-line-bright);
+        }
+        .court-inner {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(84vw, 660px); height: min(90vh, 880px);
+            border: 1px solid var(--court-line);
+        }
+        .svc-top, .svc-bot {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            width: min(84vw, 660px); height: 1px; background: var(--court-line);
+        }
+        .svc-top { top: calc(50% - 140px); }
+        .svc-bot { top: calc(50% + 140px); }
+        .ctr-line {
+            position: absolute; top: calc(50% - 140px); left: 50%;
+            transform: translateX(-50%);
+            width: 1px; height: 280px; background: var(--court-line);
+        }
+        .court-glow {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(ellipse, rgba(21,128,61,0.12) 0%, transparent 70%);
+        }
+        .ambient {
+            position: absolute; top: -100px; left: 50%;
+            transform: translateX(-50%);
+            width: 500px; height: 300px;
+            background: radial-gradient(ellipse, rgba(34,197,94,0.07) 0%, transparent 70%);
+        }
+
+        /* Layout */
+        .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* Header */
+        .header {
+            padding: clamp(16px,3vw,28px) clamp(20px,5vw,56px);
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(16px);
+            background: rgba(3,15,7,0.55);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand-mark {
+            width: 40px; height: 40px;
+            border: 1.5px solid var(--green-700); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, var(--green-900), var(--green-800));
+        }
+        .brand-mark svg { width: 20px; height: 20px; }
+        .brand-name {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(18px,3vw,24px); letter-spacing: 3px; line-height: 1;
+        }
+        .brand-sub { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--green-500); font-weight: 300; margin-top: 3px; }
+        .hdr-status { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
+        .dot { width: 7px; height: 7px; background: var(--green-500); border-radius: 50%; box-shadow: 0 0 8px var(--green-500); animation: pdot 2.5s ease-in-out infinite; }
+        @keyframes pdot { 0%,100%{opacity:1;box-shadow:0 0 8px var(--green-500)} 50%{opacity:.6;box-shadow:0 0 16px var(--green-400)} }
+
+        /* Hero */
+        .hero {
+            padding: clamp(36px,7vw,72px) clamp(20px,5vw,56px) clamp(24px,4vw,44px);
+            text-align: center; max-width: 760px; margin: 0 auto; width: 100%;
+        }
+        .eyebrow {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+            color: var(--green-400); font-weight: 400; margin-bottom: 18px;
+            padding: 6px 18px; border: 1px solid var(--border); border-radius: 100px;
+            background: rgba(34,197,94,0.06);
+        }
+        .hero-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(52px,11vw,100px); letter-spacing: 4px; line-height: .88; margin-bottom: 18px;
+        }
+        .hero-title span { color: var(--green-400); display: block; }
+        .hero-desc { font-size: clamp(13px,1.8vw,15px); color: var(--text-mid); font-weight: 300; line-height: 1.75; max-width: 500px; margin: 0 auto; }
+
+        /* Main */
+        .main { flex: 1; padding: 0 clamp(20px,5vw,56px) clamp(40px,6vw,60px); max-width: 840px; margin: 0 auto; width: 100%; }
+
+        /* Query box */
+        .query-box {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: clamp(18px,3.5vw,28px);
+            backdrop-filter: blur(20px); margin-bottom: 16px;
+            transition: border-color .3s ease, box-shadow .3s ease;
+        }
+        .query-box:focus-within {
+            border-color: var(--border-bright);
+            box-shadow: 0 0 0 1px rgba(34,197,94,.1), 0 20px 60px rgba(0,0,0,.4);
+        }
+        .q-label {
+            font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+            color: var(--green-500); font-weight: 500; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .q-label::after { content:''; flex:1; height:1px; background:var(--border); }
+        textarea {
+            width: 100%; background: transparent; border: none; outline: none;
+            color: #fff; font-family: 'DM Sans', sans-serif;
+            font-size: clamp(14px,2.2vw,16px); font-weight: 300; line-height: 1.7;
+            resize: none; min-height: 88px; caret-color: var(--green-400);
+        }
+        textarea::placeholder { color: var(--text-dim); }
+        .q-footer {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+            gap: 12px; flex-wrap: wrap;
+        }
+        .char-count { font-size: 12px; color: var(--text-dim); font-weight: 300; }
+        .submit-btn {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--green-700); border: 1px solid var(--green-600);
+            border-radius: 10px; padding: 12px 28px;
+            color: #fff; font-family: 'Bebas Neue', sans-serif;
+            font-size: 16px; letter-spacing: 2px; cursor: pointer;
+            transition: all .2s ease; white-space: nowrap;
+        }
+        .submit-btn:hover:not(:disabled) { background: var(--green-600); border-color: var(--green-500); transform: translateY(-1px); box-shadow: 0 8px 32px rgba(21,128,61,.4); }
+        .submit-btn:active:not(:disabled) { transform: translateY(0); }
+        .submit-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-arrow { width: 18px; height: 18px; transition: transform .2s ease; }
+        .submit-btn:hover:not(:disabled) .btn-arrow { transform: translateX(3px); }
+
+        /* Chips */
+        .chips-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; align-items: center; }
+        .chips-lbl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); flex-shrink: 0; }
+        .chip {
+            background: transparent; border: 1px solid var(--border); border-radius: 100px;
+            padding: 6px 15px; font-size: 12px; color: var(--text-mid);
+            cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 300;
+            transition: all .2s ease; white-space: nowrap;
+        }
+        .chip:hover { border-color: var(--green-600); color: var(--green-300); background: rgba(34,197,94,.06); }
+        .rs.call { border-color: rgba(96,165,250,.25); background: rgba(96,165,250,.04); }
+        .rs.call .rs-head { color: #93c5fd; background: rgba(96,165,250,.08); }
+        .rs.call .rs-dot { background: #60a5fa; }
+        .rs.call .rs-body { color: #bfdbfe; font-size: clamp(14px,2.1vw,16px); font-weight: 400; }
+
+        .rs.mgmt { border-color: rgba(167,139,250,.2); background: rgba(167,139,250,.03); }
+        .rs.mgmt .rs-head { color: #c4b5fd; background: rgba(167,139,250,.07); }
+        .rs.mgmt .rs-dot { background: #a78bfa; }
+        /* States */
+        .state-loading {
+            display: none; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px; backdrop-filter: blur(20px);
+            align-items: center; gap: 20px;
+        }
+        .state-loading.show { display: flex; }
+        .spinner { width: 44px; height: 44px; border: 2px solid var(--border); border-top-color: var(--green-500); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader-text { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-mid); font-weight: 300; }
+        .loader-text em { display: block; font-style: normal; color: var(--green-400); margin-top: 4px; font-size: 11px; letter-spacing: 1px; }
+
+        .state-error {
+            display: none; background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.2);
+            border-radius: 16px; padding: 22px 26px; color: var(--red);
+            font-size: 14px; font-weight: 300; align-items: center; gap: 12px;
+        }
+        .state-error.show { display: flex; }
+
+        /* Ruling card */
+        .ruling-card {
+            display: none; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; overflow: hidden; backdrop-filter: blur(20px);
+            animation: reveal .4s cubic-bezier(.16,1,.3,1);
+        }
+        .ruling-card.show { display: block; }
+        @keyframes reveal { from{opacity:0;transform:translateY(20px) scale(.98)} to{opacity:1;transform:translateY(0) scale(1)} }
+
+        .r-topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 24px; border-bottom: 1px solid var(--border);
+            background: rgba(21,128,61,.08); flex-wrap: wrap; gap: 8px;
+        }
+        .r-topbar-l { display: flex; align-items: center; gap: 10px; }
+        .r-icon {
+            width: 32px; height: 32px; background: var(--green-800);
+            border: 1px solid var(--green-700); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 15px;
+        }
+        .r-title { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: var(--green-300); }
+        .r-time { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+
+        .r-query { padding: 14px 24px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,.15); }
+        .r-query-lbl { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px; }
+        .r-query-txt { font-size: 14px; color: var(--text-mid); font-weight: 300; font-style: italic; line-height: 1.5; }
+
+        .r-sections { padding: clamp(14px,2.5vw,24px); display: flex; flex-direction: column; gap: 10px; }
+
+        .rs { border-radius: 10px; overflow: hidden; border: 1px solid transparent; }
+        .rs-head { display: flex; align-items: center; gap: 10px; padding: 9px 15px; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; font-weight: 500; }
+        .rs-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .rs-body table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+        .rs-body th { background: rgba(34,197,94,0.1); color: var(--green-300); padding: 8px 12px; text-align: left; font-weight: 500; border: 1px solid var(--border); }
+        .rs-body td { padding: 8px 12px; border: 1px solid var(--border); color: var(--text-mid); vertical-align: top; }
+        .rs-body tr:nth-child(even) td { background: rgba(0,0,0,0.15); }
+        .rs-body strong { color: #fff; font-weight: 500; }
+
+        .rs.ruling { border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.04); }
+        .rs.ruling .rs-head { color: var(--green-400); background: rgba(34,197,94,.08); }
+        .rs.ruling .rs-dot { background: var(--green-500); }
+        .rs.ruling .rs-body { color: var(--green-100); font-size: clamp(14px,2.1vw,16px); }
+
+        .rs.ref { border-color: rgba(251,191,36,.2); background: rgba(251,191,36,.03); }
+        .rs.ref .rs-head { color: var(--gold); background: rgba(251,191,36,.07); }
+        .rs.ref .rs-dot { background: var(--gold); }
+        .rs.ref .rs-body { color: rgba(251,191,36,.85); font-size: 13px; }
+
+        .rs.expl { border-color: rgba(34,197,94,.15); background: rgba(5,46,22,.4); }
+        .rs.expl .rs-head { color: var(--text-mid); background: rgba(5,46,22,.6); }
+        .rs.expl .rs-dot { background: var(--green-600); }
+
+        .rs.edge { border-color: rgba(248,113,113,.15); background: rgba(248,113,113,.03); }
+        .rs.edge .rs-head { color: var(--red); background: rgba(248,113,113,.07); }
+        .rs.edge .rs-dot { background: var(--red); }
+
+        /* History */
+        .history { margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--border); display: none; }
+        .history.show { display: block; }
+        .hist-lbl { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
+        .hist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 8px; }
+        .hist-item {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 15px; cursor: pointer; transition: all .2s ease;
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .hist-item:hover { border-color: var(--green-700); background: var(--surface-hover); }
+        .hist-num { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--green-800); line-height: 1; flex-shrink: 0; margin-top: 1px; }
+        .hist-q { font-size: 13px; color: var(--text-mid); font-weight: 300; line-height: 1.5; }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: clamp(14px,2.5vw,22px) clamp(20px,5vw,56px);
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 14px; flex-wrap: wrap;
+        }
+        .foot-l { font-size: 11px; color: var(--text-dim); letter-spacing: .5px; font-weight: 300; }
+        .foot-r { display: flex; align-items: center; gap: 6px; }
+        .fbadge {
+            background: rgba(34,197,94,.08); border: 1px solid var(--border);
+            border-radius: 4px; padding: 3px 8px;
+            font-size: 10px; letter-spacing: 1.5px; color: var(--green-500); text-transform: uppercase;
+        }
+
+        /* Responsive */
+        @media(max-width:600px){
+            .hdr-status span:not(.dot){display:none}
+            .q-footer{flex-direction:column;align-items:stretch}
+            .submit-btn{justify-content:center}
+            .r-topbar{flex-direction:column;align-items:flex-start}
+            .hist-grid{grid-template-columns:1fr}
+            footer{flex-direction:column;text-align:center}
+        }
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:var(--green-900);border-radius:2px}
+    </style>
+</head>
+<body>
+
+<div class="court-bg" aria-hidden="true">
+    <div class="court-inner"></div>
+    <div class="svc-top"></div>
+    <div class="svc-bot"></div>
+    <div class="ctr-line"></div>
+    <div class="court-glow"></div>
+    <div class="ambient"></div>
+</div>
+
+<div class="page">
+
+    <header class="header">
+        <div class="brand">
+            <div class="brand-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M8 12h8M12 8v8" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="brand-name">BWF Ruling Engine</div>
+                <div class="brand-sub">Official Technical Assistant</div>
+            </div>
+        </div>
+        <div class="hdr-status">
+            <div class="dot"></div>
+            <span>System Online</span>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="eyebrow">⚡ Powered by Claude AI + BWF Regulations</div>
+        <h1 class="hero-title">Instant<span>Rulings</span></h1>
+        <p class="hero-desc">Submit any match situation and receive an authoritative ruling grounded strictly in the official BWF Laws of Badminton.</p>
+    </div>
+
+    <main class="main">
+
+        <div class="query-box">
+            <div class="q-label">Describe the Situation</div>
+            <textarea id="queryInput" placeholder="e.g. A player's racket crosses over the net after striking the shuttle. The shuttle lands in. Is this a fault?" rows="4" maxlength="600" oninput="updateCount()"></textarea>
+            <div class="q-footer">
+                <span class="char-count" id="charCount">0 / 600</span>
+                <button class="submit-btn" id="submitBtn" onclick="submitQuery()">
+                    Request Ruling
+                    <svg class="btn-arrow" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M3 9h12M9 3l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="chips-row">
+            <span class="chips-lbl">Try —</span>
+            <div class="chip" onclick="setQuery(this)">Touching the net mid-rally</div>
+            <div class="chip" onclick="setQuery(this)">Shuttle hits the ceiling</div>
+            <div class="chip" onclick="setQuery(this)">Player clothing color rules</div>
+            <div class="chip" onclick="setQuery(this)">Double hit on return</div>
+            <div class="chip" onclick="setQuery(this)">Service fault conditions</div>
+        </div>
+
+        <div>
+            <div class="state-loading" id="stateLoading">
+                <div class="spinner"></div>
+                <div class="loader-text">Consulting BWF Regulations<em>Retrieving applicable laws...</em></div>
+            </div>
+
+            <div class="state-error" id="stateError">
+                <span>⚠</span><span id="errMsg"></span>
+            </div>
+
+            <div class="ruling-card" id="rulingCard">
+                <div class="r-topbar">
+                    <div class="r-topbar-l">
+                        <div class="r-icon">⚖️</div>
+                        <div class="r-title">Official Ruling</div>
+                    </div>
+                    <div class="r-time" id="rTime"></div>
+                </div>
+                <div class="r-query">
+                    <div class="r-query-lbl">Situation submitted</div>
+                    <div class="r-query-txt" id="rQueryTxt"></div>
+                </div>
+                <div class="r-sections" id="rSections"></div>
+            </div>
+        </div>
+
+        <div class="history" id="historyWrap">
+            <div class="hist-lbl">Previous Queries</div>
+            <div class="hist-grid" id="histGrid"></div>
+        </div>
+
+    </main>
+
+    <footer>
+        <div class="foot-l">BWF Ruling Engine · For Official Use · Based on BWF Laws 2025</div>
+        <div class="foot-r">
+            <span class="fbadge">Claude AI</span>
+            <span class="fbadge">RAG</span>
+            <span class="fbadge">BWF 2025</span>
+        </div>
+    </footer>
+
+</div>
+
+<script>
+    const qHistory = [];
+
+    function updateCount() {
+        const v = document.getElementById('queryInput').value.length;
+        document.getElementById('charCount').textContent = `${v} / 600`;
+    }
+
+    function setQuery(el) {
+        const ta = document.getElementById('queryInput');
+        ta.value = el.textContent.trim();
+        updateCount();
+        ta.focus();
+    }
+
+    function parseRuling(text) {
+        const secs = [
+            { tag: 'ruling',            cls: 'ruling', icon: '⚖️', lbl: 'Ruling' },
+            { tag: 'umpire_call',       cls: 'call',   icon: '📢', lbl: 'Umpire Call' },
+            { tag: 'rule_reference',    cls: 'ref',    icon: '📖', lbl: 'Rule Reference' },
+            { tag: 'explanation',       cls: 'expl',   icon: '📝', lbl: 'Explanation' },
+            { tag: 'player_management', cls: 'mgmt',   icon: '🤝', lbl: 'Player Management' },
+            { tag: 'edge_case',         cls: 'edge',   icon: '⚠',  lbl: 'Edge Case' },
+        ];
+        let html = '';
+        for (const s of secs) {
+            const m = text.match(new RegExp(`<${s.tag}>[\\s\\S]*?<\\/${s.tag}>`, 'i'));
+            if (m) {
+                    const content = m[0]
+                        .replace(new RegExp(`</?${s.tag}>`, 'gi'), '')
+                        .trim();                
+                    html += `<div class="rs ${s.cls}">
+                    <div class="rs-head"><div class="rs-dot"></div>${s.icon} ${s.lbl}</div>
+                    <div class="rs-body">${content}</div>
+                </div>`;
+            }
+        }
+        return html || `<div class="rs expl"><div class="rs-body">${text}</div></div>`;
+    }
+
+    async function submitQuery() {
+        const query = document.getElementById('queryInput').value.trim();
+        if (!query) return;
+
+        const btn = document.getElementById('submitBtn');
+        const loading = document.getElementById('stateLoading');
+        const error = document.getElementById('stateError');
+        const card = document.getElementById('rulingCard');
+
+        btn.disabled = true;
+        loading.classList.add('show');
+        error.classList.remove('show');
+        card.classList.remove('show');
+
+        try {
+            const res = await fetch('/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            loading.classList.remove('show');
+
+            const now = new Date();
+            document.getElementById('rTime').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('rQueryTxt').textContent = query;
+            document.getElementById('rSections').innerHTML = parseRuling(data.ruling);
+            card.classList.add('show');
+
+            addHistory(query);
+            document.getElementById('queryInput').value = '';
+            updateCount();
+
+        } catch (err) {
+            loading.classList.remove('show');
+            document.getElementById('errMsg').textContent = err.message || 'Connection failed. Please try again.';
+            error.classList.add('show');
+        }
+
+        btn.disabled = false;
+    }
+
+    function addHistory(q) {
+        qHistory.unshift(q);
+        const wrap = document.getElementById('historyWrap');
+        const grid = document.getElementById('histGrid');
+        wrap.classList.add('show');
+        grid.innerHTML = qHistory.slice(0, 6).map((item, i) => `
+            <div class="hist-item" onclick="document.getElementById('queryInput').value='${item.replace(/'/g,"\\'")}'; updateCount();">
+                <div class="hist-num">0${i + 1}</div>
+                <div class="hist-q">${item}</div>
+            </div>`).join('');
+    }
+
+    document.getElementById('queryInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitQuery();
+    });
+</script>
+
+</body>
+</html>
