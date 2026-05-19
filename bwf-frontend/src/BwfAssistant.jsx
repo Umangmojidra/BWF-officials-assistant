@@ -605,7 +605,8 @@ export default function BwfAssistant() {
     setLoading(true);
 
     try {
-      const res = await fetch("/ask", {
+      const BACKEND_URL = import.meta.env.VITE_API_URL || "";
+      const res = await fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query })
