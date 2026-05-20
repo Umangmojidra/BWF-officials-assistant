@@ -1,15 +1,18 @@
-from sentence_transformers import SentenceTransformer
+import os
+import requests
+import numpy as np
+from dotenv import load_dotenv
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+load_dotenv()
 
+API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+HEADERS = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
 
-def generate_embeddings(text):
-    embeddings = model.encode(text)
+def generate_embeddings(texts):
+    response = requests.post(
+        API_URL,
+        headers=HEADERS,
+        json={"inputs": texts, "options": {"wait_for_model": True}}
+    )
+    embeddings = np.array(response.json())
     return embeddings
-
-if __name__ == "__main__":
-    sample = ["Player touches the net during play",
-              "Shuttle landing outside court is out"]
-    result = generate_embeddings(sample)
-    print(f"Embedding shape: {result.shape}")
-    print(f"First 5 values: {result[0][:5]}")
