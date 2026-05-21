@@ -15,6 +15,14 @@ CORS(app)
 def home():
     return jsonify({"status": "BWF Officials Chatbot API is running!"})
 
+@app.route('/debug')
+def debug():
+    return jsonify({
+        "pinecone_key_exists": bool(os.getenv("PINECONE_API_KEY")),
+        "pinecone_key_prefix": os.getenv("PINECONE_API_KEY", "")[:8],
+        "pinecone_index": os.getenv("PINECONE_INDEX")
+    })
+
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json()
