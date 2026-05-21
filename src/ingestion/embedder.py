@@ -1,18 +1,27 @@
 import os
-import requests
 import numpy as np
-from dotenv import load_dotenv
-
-load_dotenv()
-
-API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
-HEADERS = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
 
 def generate_embeddings(texts):
-    response = requests.post(
-        API_URL,
-        headers=HEADERS,
-        json={"inputs": texts, "options": {"wait_for_model": True}}
-    )
-    embeddings = np.array(response.json())
-    return embeddings
+    # Use simple TF-IDF style hashing for lightweight embeddings
+    # This avoids external API calls and heavy torch dependencies
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.preprocessing import normalize
+    import hashlib
+    
+    # Create 384-dim embeddings using hashing trick
+    embeddings = []
+    for text in texts:
+        # Hash-based embedding — lightweight, no external calls
+        vector = np.zeros(384)
+        words = text.lower().split()
+        for word in words:
+            hash_val = int(hashlib.md5(word.encode()).hexdigest(), 16)
+            idx = hash_val % 384
+            vector[idx] += 1.0
+        # Normalize
+        norm = np.linalg.norm(vector)
+        if norm > 0:
+            vector = vector / norm
+        embeddings.append(vector)
+    
+    return np.array(embeddings)
