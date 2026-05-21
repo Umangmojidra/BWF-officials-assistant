@@ -29,3 +29,13 @@ dist/
 venv/
 __pycache__/
 *.pyc
+
+package.json
+
+package.json
+package-lock.json
+node_modules/
+public/
+eslint.config.js
+vite.config.js
+tailwind.config.js
